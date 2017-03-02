@@ -24,6 +24,8 @@ LEDStrip fixture;
 byte[] dmxBuffer;
 PGraphics ledGraphics;
 
+PulseSystem pulseSystem;
+
 void setup() {
 
   size(800, 600, P2D);
@@ -31,10 +33,17 @@ void setup() {
 
   dmxOutput = new DmxP512(this,universeSize,true); // dmxOutput=new DmxP512(this,universeSize,false); était false
   dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
-  fixture = new LEDStrip(30, 30);
+
+  fixture = new LEDStrip(20, 60);
   fixture.addLEDs(0,48*3);
+  // fixture.addLEDs(49+48,49);
+  // fixture.addLEDs(98+48, 98);
+
+
   dmxBuffer = new byte[512];
   blackout();
+
+  pulseSystem = new PulseSystem(fixture.getPointA(), fixture.getPointB());
   //
   // String portName = Serial.list()[2]; //change the 0 to a 1 or 2 etc. to match your port
   // myPort = new Serial(this, portName, 115200);
@@ -42,9 +51,12 @@ void setup() {
 
 void draw() {
 
-  background(70,20,20);
+  background(170,20,20);
   textSize(20);
   text((int)frameRate, 20, 20);
+
+
+  pulseSystem.update();
   doLEDGraphics();
   outputDMX();
   //
@@ -66,6 +78,10 @@ void draw() {
   // }
 }
 
+void mousePressed(){
+    pulseSystem.addPulse(float(mouseX) / float(width), random(0.001, 0.02));
+}
+
 void doLEDGraphics(){
     ledGraphics.beginDraw();
     ledGraphics.background(0,0);
@@ -75,9 +91,19 @@ void doLEDGraphics(){
     // ledGraphics.stroke(255,0,0);
     // bounce();
 
+    // ledGraphics.stroke(30);
+    // vecLine(ledGraphics, fixture.getPointA(), fixture.getPointB());
+
+    ledGraphics.blendMode(ADD);
+    pulseSystem.draw(ledGraphics);
+
+
+
     ledGraphics.endDraw();
     ledGraphics.loadPixels();
     image(ledGraphics, 0,0);
+
+
     fixture.parseGraphics(ledGraphics);
     fixture.bufferData(dmxBuffer);
 }

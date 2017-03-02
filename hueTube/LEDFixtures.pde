@@ -36,12 +36,7 @@ class LEDFixture {
     public ArrayList<LEDPixel> getPixels(){
         return ledPixels;
     }
-    public void setColor(color _c){
-        fixtureColor = _c;
-    }
-    public void setUnit(float _f){
-        unitInterval = _f;
-    }
+    
 }
 
 class LEDStrip extends LEDFixture {
@@ -123,6 +118,7 @@ class LEDPixel {
         yPos = _y;
         // println("LED "+_adr+" "+_x+" "+_y);
     }
+
     public void parseGraphics(PGraphics _pg){
         int adr = yPos * width + xPos;
         if(adr < width * height) setColor(_pg.pixels[adr]);
