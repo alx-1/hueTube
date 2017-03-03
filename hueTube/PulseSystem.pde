@@ -13,11 +13,14 @@ class PulseSystem {
 		pointB = _pointB;
 	}
 
-	public void addPulse(float _pos, float _power){
+	public void makePulse(float _pos, float _power){
 		println("adding pulse at "+_pos+" "+_power);
+		addPulse(_pos, _power);
+		addPulse(_pos, -_power);
 		incrementer++;
-		if(incrementer % 2 == 1) _power *= -1.0;
+	}
 
+	public void addPulse(float _pos, float _power){
 		Pulse _newPulse = new Pulse(_pos, _power);
 		switch(incrementer % 3){
 			case 0:

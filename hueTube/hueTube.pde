@@ -35,7 +35,9 @@ void setup() {
   dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
 
   fixture = new LEDStrip(20, 60);
-  fixture.addLEDs(0,48*3);
+  // fixture.addLEDs((48+11)*2,48+11);
+  fixture.addLEDs(119, 59);
+  fixture.addLEDs(0,59);
   // fixture.addLEDs(49+48,49);
   // fixture.addLEDs(98+48, 98);
 
@@ -79,7 +81,7 @@ void draw() {
 }
 
 void mousePressed(){
-    pulseSystem.addPulse(float(mouseX) / float(width), random(0.001, 0.02));
+    pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02));
 }
 
 void doLEDGraphics(){
@@ -88,7 +90,10 @@ void doLEDGraphics(){
     fixture.draw(ledGraphics);
     // draw stuff
     // RGBGradient();
-    // ledGraphics.stroke(255,0,0);
+    ledGraphics.stroke(255,0,0);
+    ledGraphics.strokeWeight(3);
+    ledGraphics.point(mouseX, 60);
+
     // bounce();
 
     // ledGraphics.stroke(30);

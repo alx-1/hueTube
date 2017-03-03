@@ -36,13 +36,12 @@ class LEDFixture {
     public ArrayList<LEDPixel> getPixels(){
         return ledPixels;
     }
-    
+
 }
 
 class LEDStrip extends LEDFixture {
     PVector pointA;
     PVector pointB;
-    boolean direction;
     public LEDStrip(int _x, int _y){
         super(_x, _y);
         pointA = new PVector(0,0);
@@ -53,19 +52,17 @@ class LEDStrip extends LEDFixture {
         int _xStart = posX;
         int _yStart = posY;
         if(ledPixels.size() != 0){
-            _xStart = ledPixels.get(ledPixels.size() - 1).xPos;
+            _xStart = ledPixels.get(ledPixels.size() - 1).xPos + PIXEL_SPACING;
             _yStart = ledPixels.get(ledPixels.size() - 1).yPos;
         }
         if(_end > _start){
-            direction = true;
             for(int i = 0; i <= _end - _start; i++){
                 ledPixels.add(new LEDPixel(_start + i, _xStart + i * PIXEL_SPACING, _yStart));
             }
         }
         else {
-            direction = false;
-            for(int i = _start - _end; i >= 0; i--){
-                ledPixels.add(new LEDPixel(_end + i, _xStart + i * PIXEL_SPACING, _yStart));
+            for(int i = 0; i <= _start - _end; i++){
+                ledPixels.add(new LEDPixel(_start - i, _xStart + i * PIXEL_SPACING, _yStart));
             }
         }
         pointA.set(ledPixels.get(0).xPos, ledPixels.get(0).yPos);
@@ -80,6 +77,11 @@ class LEDStrip extends LEDFixture {
         _pg.strokeWeight(1);
         _pg.noFill();
         _pg.rect(pointA.x-4, pointA.y-4, pointB.x - pointA.x + 8,  pointB.y - pointA.y + 8);
+        for(LEDPixel _p : ledPixels){
+            if(abs(mouseX - _p.xPos) < 2){
+                text(_p.address, _p.xPos, _p.yPos);
+            }
+        }
         // draw a point on one led at a time for testing
         // int ha = 0;
         // for(LEDPixel _p : ledPixels){
