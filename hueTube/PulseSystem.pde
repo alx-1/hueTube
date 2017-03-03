@@ -3,25 +3,21 @@
 
 class PulseSystem {
 	ArrayList<Pulse> pulseArray;
-	PVector pointA;
-	PVector pointB;
 	int incrementer = 0;
 
-	public PulseSystem(PVector _pointA , PVector _pointB){
+	public PulseSystem(){
 		pulseArray = new ArrayList<Pulse>();
-		pointA = _pointA;
-		pointB = _pointB;
 	}
 
-	public void makePulse(float _pos, float _power){
+	public void makePulse(float _pos, float _power, PulseRender _renderer){
 		println("adding pulse at "+_pos+" "+_power);
-		addPulse(_pos, _power);
-		addPulse(_pos, -_power);
+		addPulse(_pos, _power, _renderer);
+		addPulse(_pos, -_power, _renderer);
 		incrementer++;
 	}
 
-	public void addPulse(float _pos, float _power){
-		Pulse _newPulse = new Pulse(_pos, _power);
+	public void addPulse(float _pos, float _power, PulseRender _renderer){
+		Pulse _newPulse = new Pulse(_pos, _power, _renderer);
 		switch(incrementer % 3){
 			case 0:
 				_newPulse.setColor(color(255,0,0));
@@ -34,18 +30,6 @@ class PulseSystem {
 				break;
 		}
 		pulseArray.add(_newPulse);
-	}
-
-	public void draw(PGraphics _pg){
-		_pg.strokeWeight(3);
-		if(pulseArray.size() > 0){
-			for(Pulse _pulse : pulseArray){
-				_pg.pushMatrix();
-				_pg.translate(lerp(pointA.x, pointB.x, _pulse.getPositon()), pointA.y);
-				_pulse.draw(_pg);
-				_pg.popMatrix();
-			}
-		}
 	}
 
 	public void update(){
@@ -62,6 +46,10 @@ class PulseSystem {
 		}
 	}
 
+	public ArrayList<Pulse> getPulses(){
+		return pulseArray;
+	}
+
 }
 
 
@@ -71,16 +59,19 @@ class Pulse {
 	float power;
 	float life;
 	color pulseColor;
+	PulseRender renderer;
+
 	/**
-	 *
 	 *  @param float position, 0-1
 	 *	@param float power, positive, or negative inertia
 	 */
-	public Pulse(float _pos, float _power){
+	public Pulse(float _pos, float _power, PulseRender _renderer){
 		position = _pos;
 		power = _power;
 		life = 1.0;
+		renderer = _renderer;
 	}
+
 	public void setColor(color _c){
 		pulseColor = _c;
 	}
@@ -103,18 +94,20 @@ class Pulse {
 	}
 
 	public void draw(PGraphics _pg){
-		float _width = 10.0;
-		_pg.beginShape();
-		_pg.stroke(0);
-		_pg.vertex(-10.0, 0);
-		_pg.stroke(lerpColor(color(0), pulseColor, life));
-		_pg.vertex(0, 0);
-		_pg.stroke(0);
-		_pg.vertex(10.0, 0);
-		_pg.endShape();
+		renderer.draw(_pg, this);
 	}
+
 
 	public float getPositon(){
 		return position;
+	}
+	public float getLife(){
+		return life;
+	}
+	public float getPower(){
+		return power;
+	}
+	public color getColor(){
+		return pulseColor;
 	}
 }

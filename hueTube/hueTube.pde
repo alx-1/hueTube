@@ -3,12 +3,12 @@ import processing.serial.*;
 
 // dmx addresses, 0, 145, 192
 // on controller 000000000   0001
-//               100010010
-//               001001001
+//               101011010
+//               000000000
 //               000000000
 
 DmxP512 dmxOutput;
-int universeSize=512;
+int universeSize = 512;
 String DMXPRO_PORT="/dev/ttyUSB0";
 int DMXPRO_BAUDRATE=115200;
 
@@ -25,6 +25,7 @@ byte[] dmxBuffer;
 PGraphics ledGraphics;
 
 PulseSystem pulseSystem;
+PulseRender renderer;
 
 void setup() {
 
@@ -35,17 +36,14 @@ void setup() {
   dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
 
   fixture = new LEDStrip(20, 60);
-  // fixture.addLEDs((48+11)*2,48+11);
   fixture.addLEDs(119, 59);
   fixture.addLEDs(0,59);
-  // fixture.addLEDs(49+48,49);
-  // fixture.addLEDs(98+48, 98);
-
 
   dmxBuffer = new byte[512];
   blackout();
 
-  pulseSystem = new PulseSystem(fixture.getPointA(), fixture.getPointB());
+  pulseSystem = new PulseSystem();
+  renderer = new LifeRender(fixture.getPointA(), fixture.getPointB());
   //
   // String portName = Serial.list()[2]; //change the 0 to a 1 or 2 etc. to match your port
   // myPort = new Serial(this, portName, 115200);
@@ -56,7 +54,6 @@ void draw() {
   background(170,20,20);
   textSize(20);
   text((int)frameRate, 20, 20);
-
 
   pulseSystem.update();
   doLEDGraphics();
@@ -81,10 +78,11 @@ void draw() {
 }
 
 void mousePressed(){
-    pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02));
+    pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02), renderer);
 }
 
 void doLEDGraphics(){
+    // init the grpahics buffer
     ledGraphics.beginDraw();
     ledGraphics.background(0,0);
     fixture.draw(ledGraphics);
@@ -94,23 +92,24 @@ void doLEDGraphics(){
     ledGraphics.strokeWeight(3);
     ledGraphics.point(mouseX, 60);
 
-    // bounce();
-
-    // ledGraphics.stroke(30);
-    // vecLine(ledGraphics, fixture.getPointA(), fixture.getPointB());
-
+    ledGraphics.strokeCap(SQUARE);
     ledGraphics.blendMode(ADD);
-    pulseSystem.draw(ledGraphics);
-
-
-
+    // vecLine(ledGraphics, fixture.getPointA(), fixture.getPointB());
+    for(Pulse _pulse : pulseSystem.getPulses()){
+        _pulse.draw(ledGraphics);
+    }
+    // end the drawing process on buffer
     ledGraphics.endDraw();
-    ledGraphics.loadPixels();
     image(ledGraphics, 0,0);
 
-
+    // parse graphics buffer and ouptut DMX
+    ledGraphics.loadPixels();
     fixture.parseGraphics(ledGraphics);
     fixture.bufferData(dmxBuffer);
+}
+
+void drawPulses(){
+
 }
 
 void blackout(){
