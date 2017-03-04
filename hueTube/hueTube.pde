@@ -8,12 +8,13 @@ import dmxP512.*;
 
 DmxP512 dmxOutput;
 int universeSize = 512;
-String DMXPRO_PORT="";
-String dmxProPort = "";
+String DMXPRO_PORT="/dev/ttyUSB0";
 int DMXPRO_BAUDRATE=115200;
 
 // piezo sensing
 Arduino piezoDuino;
+String ARDUINO_PORT = "/dev/ttyACM0";
+int ARDUINO_BAUDRATE = 115200;
 final int PIEZO_COUNT = 20;
 ValueSmoother[] smoothers;
 
@@ -30,6 +31,7 @@ int SENSITIVITY = 10;
 int STANDBY_TIME = 10000;
 int timeout = 0;
 boolean standby = false;
+
 void setup() {
     size(800, 600, P2D);
     ledGraphics = createGraphics(width, height, P2D);
@@ -37,10 +39,11 @@ void setup() {
     ledGraphics.background(0);
     ledGraphics.endDraw();
 
-    setupSerial();
+    piezoDuino = new Arduino(this);
+    piezoDuino.connect(ARDUINO_PORT, ARDUINO_BAUDRATE);
 
     dmxOutput = new DmxP512(this,universeSize,true); // dmxOutput=new DmxP512(this,universeSize,false); était false
-    dmxOutput.setupDmxPro(dmxProPort, DMXPRO_BAUDRATE);
+    dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
 
     fixture = new LEDStrip(20, 60);
     fixture.addLEDs(119, 59);
@@ -81,43 +84,6 @@ void draw() {
 ///////     Serial Stuff
 ///////
 ////////////////////////////////////////////////////////////////////////////////////
-
-// setup the serial connections with the two arduinos required.
-void setupSerial(){
-    String[] _ports = Serial.list();
-    for(String _port : _ports){
-        // find ports with matching pattern
-        if(_port.contains("/dev/ttyUSB") || _port.contains("/dev/ttyACM")){
-            Arduino _duino = new Arduino(this);
-            _duino.connect(_port, 115200);
-            String _mess = "";
-            // query its name by send '?'
-            for(int i = 0; i < 10; i++){
-                _mess = _duino.getMessage('?');
-                if(_mess.equals("")) println("Identifying : "+_port);
-                else break;
-                delay(200);
-            }
-            // then assign them to the correct variables
-            if(_mess.contains("piezo")) piezoDuino = _duino;
-            else if(_mess.equals("")){
-                _duino.close();
-                dmxProPort  = _port;
-            }
-        }
-    }
-    if(piezoDuino == null) {
-        println("WARNING : issue with piezo arduino");
-        exit();
-    }
-    else println("Piezos connected");
-    if(dmxProPort.equals("")) {
-        println("WARNING : issue with entec pro");
-        exit();
-    }
-    else println("Entec port : "+dmxProPort);
-}
-
 // poll piezos
 void poll(){
     String[] _buf = split(piezoDuino.poll(), ',');

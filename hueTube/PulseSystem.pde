@@ -109,3 +109,32 @@ class Pulse {
 		return pulseColor;
 	}
 }
+
+class ReturnPulse extends Pulse {
+	float startingPosition;
+	boolean dir;
+	public ReturnPulse(float _pos, float _power, PulseRender _renderer){
+		super(_pos, _power, _renderer);
+		startingPosition = _pos;
+		dir = _power > 0.0;
+	}
+
+	public boolean update(){
+		position += power;
+		if(position < 0.0){
+			position = 0.0;
+			power *= -1;
+		}
+		else if(position > 1.0){
+			position = 1.0;
+			power *= -1;
+		}
+		life -= 0.01;
+		power -= power / 100.0;
+		if(dir) return position < startingPosition;
+		else return position > startingPosition;
+
+		// if life is at zero reutrn true to remove
+		// return life < 0.0;
+	}
+}
