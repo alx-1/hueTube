@@ -8,7 +8,7 @@ import dmxP512.*;
 
 DmxP512 dmxOutput;
 int universeSize = 512;
-// String DMXPRO_PORT="/dev/ttyUSB0"; 
+// String DMXPRO_PORT="/dev/ttyUSB0";
 String DMXPRO_PORT="/dev/tty.usbserial-EN168786";
 int DMXPRO_BAUDRATE=115200;
 
@@ -56,6 +56,8 @@ void setup() {
 
     pulseSystem = new PulseSystem();
     renderer = new PulseRender(fixture.getPointA(), fixture.getPointB());
+    // renderer = new LifeRender(fixture.getPointA(), fixture.getPointB());
+
 
     smoothers = new ValueSmoother[PIEZO_COUNT];
     for(int i = 0; i < PIEZO_COUNT; i++){
@@ -130,7 +132,7 @@ void checkForPulse(){
         if(_chosen.canUse()){
             _chosen.use();
             pulseSystem.makePulse(_pos/20.0, _highest/1000.0, renderer);
-            println(_pos/20.0+" "+_highest/1000.0);
+            // println(_pos/20.0+" "+_highest/1000.0);
             timeout = millis();
         }
     }

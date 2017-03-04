@@ -10,13 +10,13 @@ class PulseSystem {
 
 	public void makePulse(float _pos, float _power, PulseRender _renderer){
 		println("adding pulse at "+_pos+" "+_power);
-		addPulse(_pos, _power, _renderer);
-		addPulse(_pos, -_power, _renderer);
+		if(_pos < 0.5) addPulse(_pos, _power, _renderer);
+		else addPulse(_pos, -_power, _renderer);
 		incrementer++;
 	}
 
 	public void addPulse(float _pos, float _power, PulseRender _renderer){
-		Pulse _newPulse = new Pulse(_pos, _power, _renderer);
+		Pulse _newPulse = new ReturnPulse(_pos, _power, _renderer);
 		switch(incrementer % 3){
 			case 0:
 				_newPulse.setColor(color(255,0,0));
@@ -120,6 +120,7 @@ class ReturnPulse extends Pulse {
 	}
 
 	public boolean update(){
+
 		position += power;
 		if(position < 0.0){
 			position = 0.0;
@@ -131,6 +132,10 @@ class ReturnPulse extends Pulse {
 		}
 		life -= 0.01;
 		power -= power / 100.0;
+		float _minSpeed = 0.002;
+		if(power < 0) power = constrain(power,-1.0, -_minSpeed);
+		else power = constrain(power, _minSpeed, 1.0);
+
 		if(dir) return position < startingPosition;
 		else return position > startingPosition;
 

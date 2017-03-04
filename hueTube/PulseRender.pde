@@ -22,7 +22,8 @@ class PulseRender{
 		_pg.beginShape();
 		_pg.stroke(0);
 		_pg.vertex(-10.0, 0);
-		_pg.stroke(lerpColor(color(0), _pulse.getColor(), _pulse.getLife()));
+		_pg.stroke( _pulse.getColor() );
+		// _pg.stroke(lerpColor(color(0), _pulse.getColor(), _pulse.getLife()));
 		_pg.vertex(0, 0);
 		_pg.stroke(0);
 		_pg.vertex(10.0, 0);
