@@ -4,6 +4,7 @@ import processing.serial.*;
 import oscP5.*;
 import netP5.*;
 
+Serial myPort;  // Create object from Serial class
 OscP5 oscP5;
 NetAddress myRemoteLocation;
 ArrayList<OscMessage> buffer;
@@ -13,6 +14,8 @@ ArrayList<OscMessage> buffer;
 //               101011010
 //               000000000
 //               000000000
+final int PIEZO_COUNT = 20;
+ValueSmoother[] smoothers;
 
 DmxP512 dmxOutput;
 int universeSize = 512;
@@ -38,6 +41,8 @@ void setup() {
   dmxOutput = new DmxP512(this,universeSize,true); // dmxOutput=new DmxP512(this,universeSize,false); était false
   dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
 
+  myPort = new Serial(this, "/dev/ttyACM0", 115200);
+
   fixture = new LEDStrip(20, 60);
   fixture.addLEDs(119, 59);
   fixture.addLEDs(0,59);
@@ -50,6 +55,10 @@ void setup() {
 
   oscP5 = new OscP5(this,12000);
   myRemoteLocation = new NetAddress("10.0.1.43",12000);
+  smoothers = new ValueSmoother[PIEZO_COUNT];
+  for(int i = 0; i < PIEZO_COUNT; i++){
+      smoothers[i] = new ValueSmoother();
+  }
 }
 
 void draw() {
@@ -65,7 +74,42 @@ void draw() {
         parseOSC(buffer.get(0));
         buffer.remove(0);
     }
+    poll();
 }
+
+
+
+void poll(){
+    myPort.write('*');
+    String _tmp = "";
+    while ( myPort.available() > 0){
+        _tmp += myPort.read();         // read it and store it in _tmp
+    }
+    // {  // If data is available,
+
+    // }
+    // if(_tmp!=null){ // check si _tmp est non null parce qu'on a un problème de synchro entre arduino et processing
+    String[] _buf = split(_tmp, ',');
+    println(_buf);
+    if(_buf.length >= PIEZO_COUNT){
+        int _ind = 0;
+        for(String _str : _buf){
+            smoothers[_ind].set(float(_str));
+            _ind++;
+        }
+    }
+    // }
+    pushMatrix();
+    translate(10, height / 2);
+    stroke(255);
+    strokeWeight(4);
+    for(ValueSmoother _v : smoothers){
+        line(0,0,0,_v.getValue());
+        translate(10,0);
+    }
+    popMatrix();
+}
+
 
 void mousePressed(){
     oscPulse(float(mouseX) / float(width), random(0.001, 0.02));

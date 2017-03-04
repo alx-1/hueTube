@@ -22,3 +22,35 @@ color HSBtoRGB(float _h, float _s, float _b){
 float lim(float _f){
     return constrain(_f, 0.0, 1.0);
 }
+
+
+class ValueSmoother{
+    float[] values;
+    final int SAMPLES = 20;
+    int currentIndex = 0;
+    float value;
+    public ValueSmoother(){
+        values = new float[SAMPLES];
+        for(int i = 0; i < SAMPLES; i++){
+            values[i] = 3;
+        }
+    }
+
+    public void set(float _v){
+        currentIndex++;
+        values[currentIndex % SAMPLES] = _v;
+        value = _v - getOffset();
+    }
+
+    public float getValue(){
+        return value;
+    }
+
+    private float getOffset(){
+        float _sum = 0;
+        for(int i = 0; i < SAMPLES; i++){
+            _sum += values[i];
+        }
+        return _sum / SAMPLES;
+    }
+}
