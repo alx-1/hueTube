@@ -32,33 +32,33 @@ boolean doFlash;
 
 void setup() {
     buffer = new ArrayList<OscMessage>();
-  size(800, 600, P2D);
-  ledGraphics = createGraphics(width, height, P2D);
-  ledGraphics.beginDraw();
-  ledGraphics.background(0);
-  ledGraphics.endDraw();
+    size(800, 600, P2D);
+    ledGraphics = createGraphics(width, height, P2D);
+    ledGraphics.beginDraw();
+    ledGraphics.background(0);
+    ledGraphics.endDraw();
 
-  dmxOutput = new DmxP512(this,universeSize,true); // dmxOutput=new DmxP512(this,universeSize,false); était false
-  dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
+    dmxOutput = new DmxP512(this,universeSize,true); // dmxOutput=new DmxP512(this,universeSize,false); était false
+    dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
 
-  myPort = new Serial(this, "/dev/ttyACM0", 115200);
+    myPort = new Serial(this, "/dev/ttyACM0", 115200);
 
-  fixture = new LEDStrip(20, 60);
-  fixture.addLEDs(119, 59);
-  fixture.addLEDs(0,59);
+    fixture = new LEDStrip(20, 60);
+    fixture.addLEDs(119, 59);
+    fixture.addLEDs(0,59);
 
-  dmxBuffer = new byte[512];
-  blackout();
+    dmxBuffer = new byte[512];
+    blackout();
 
-  pulseSystem = new PulseSystem();
-  renderer = new LifeRender(fixture.getPointA(), fixture.getPointB());
+    pulseSystem = new PulseSystem();
+    renderer = new LifeRender(fixture.getPointA(), fixture.getPointB());
 
-  oscP5 = new OscP5(this,12000);
-  myRemoteLocation = new NetAddress("10.0.1.43",12000);
-  smoothers = new ValueSmoother[PIEZO_COUNT];
-  for(int i = 0; i < PIEZO_COUNT; i++){
-      smoothers[i] = new ValueSmoother();
-  }
+    oscP5 = new OscP5(this,12000);
+    myRemoteLocation = new NetAddress("10.0.1.43",12000);
+    smoothers = new ValueSmoother[PIEZO_COUNT];
+    for(int i = 0; i < PIEZO_COUNT; i++){
+        smoothers[i] = new ValueSmoother();
+    }
 }
 
 void draw() {
@@ -74,42 +74,64 @@ void draw() {
         parseOSC(buffer.get(0));
         buffer.remove(0);
     }
-    poll();
+    if(frameCount % 4 == 1){
+        poll();
+        checkForPulse();
+    }
+    drawPiezo();
 }
-
-
 
 void poll(){
     myPort.write('*');
     String _tmp = "";
     while ( myPort.available() > 0){
-        _tmp += myPort.read();         // read it and store it in _tmp
+        _tmp += char(myPort.read());
     }
-    // {  // If data is available,
-
-    // }
-    // if(_tmp!=null){ // check si _tmp est non null parce qu'on a un problème de synchro entre arduino et processing
     String[] _buf = split(_tmp, ',');
-    println(_buf);
     if(_buf.length >= PIEZO_COUNT){
         int _ind = 0;
         for(String _str : _buf){
             smoothers[_ind].set(float(_str));
             _ind++;
+            if(_ind >= 20) break;
         }
     }
-    // }
+}
+
+void drawPiezo(){
     pushMatrix();
     translate(10, height / 2);
     stroke(255);
     strokeWeight(4);
     for(ValueSmoother _v : smoothers){
+        if(_v.canUse()) stroke(255);
+        else stroke(0,0,255);
         line(0,0,0,_v.getValue());
         translate(10,0);
     }
     popMatrix();
 }
 
+
+void checkForPulse(){
+    float _highest = 0;
+    float _pos = 0;
+    ValueSmoother _chosen = null;
+    for(int i = 0; i < PIEZO_COUNT; i++){
+        if(smoothers[i].getValue() > _highest){
+            _highest = smoothers[i].getValue();
+            _pos = i;
+            _chosen = smoothers[i];
+        }
+    }
+    if(_highest > 5.0 && _chosen != null){
+        if(_chosen.canUse()){
+            _chosen.use();
+            pulseSystem.makePulse(_pos/20.0, _highest/1000.0, renderer);
+            println(_pos/20.0+" "+_highest/1000.0);
+        }
+    }
+}
 
 void mousePressed(){
     oscPulse(float(mouseX) / float(width), random(0.001, 0.02));

@@ -29,6 +29,7 @@ class ValueSmoother{
     final int SAMPLES = 20;
     int currentIndex = 0;
     float value;
+    int timeout;
     public ValueSmoother(){
         values = new float[SAMPLES];
         for(int i = 0; i < SAMPLES; i++){
@@ -45,6 +46,18 @@ class ValueSmoother{
     public float getValue(){
         return value;
     }
+
+    public boolean canUse(){
+        if(millis() - timeout > 1000){
+            return true;
+        }
+        else return false;
+    }
+
+    public void use(){
+        timeout = millis();
+    }
+
 
     private float getOffset(){
         float _sum = 0;
