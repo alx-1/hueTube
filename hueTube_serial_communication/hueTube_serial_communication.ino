@@ -2,61 +2,60 @@
 
 //Initialize the Mux Shield
 MuxShield muxShield;
-int nums[] = {666,42,17,27};
-//Arrays to store analog values after recieving them
-int IO1AnalogVals[16];
-int IO2AnalogVals[5];
+
+#define WINDOW_SIZE 16
+int piezoBuffer[WINDOW_SIZE][20];
+int piezo[20];
+int readCount;
 
 void setup() {
     muxShield.setMode(1,ANALOG_IN);
     muxShield.setMode(2,ANALOG_IN);
     Serial.begin(115200);
+    readCount = 0;
 }
 
 void loop(){
-
-if(Serial.available()){
+    readThemPiezos();
+    delay(1);
+    if(Serial.available()){
         char _h = Serial.read();
         if(_h == '?'){
-            Serial.print("spinWheeler");
+            Serial.print("piezo");
         }
         else if(_h == '*'){
-         readThemPiezos();
+            sendData();
         }
     }
+}
 
+void sendData(){
+    for(int i =0; i < 20; i++){
+        Serial.print(piezo[i]);
+        Serial.print(',');
+    }
+    Serial.println();
 }
 
 void readThemPiezos(){
-for (int i=0; i<16; i++) // à ajuster au nombre de capteurs
-  {
-    //Analog read on all 16 inputs on IO1, IO2, and IO3
-    IO1AnalogVals[i] = int(muxShield.analogReadMS(1,i));
-    if(IO1AnalogVals[i]<4){ // preprocessing anti-bruit
-    IO1AnalogVals[i] = 0;
+    int _tmp = 0;
+    int _sum = 0;
+    readCount++;
+    for (int i=0; i<20; i++)
+    {
+        if(i < 16){
+            _tmp = int(muxShield.analogReadMS(1,i));
+        }
+        else{
+            _tmp = int(muxShield.analogReadMS(2,i));
+        }
+
+        piezoBuffer[readCount%WINDOW_SIZE][i] = _tmp;
+
+        for(int j = 0; j < WINDOW_SIZE; j++){
+            _sum += piezoBuffer[j][i];
+        }
+        piezo[i] = _sum/WINDOW_SIZE;
+        _sum = 0;
     }
-  }
-
-  for (int i=0; i<4; i++)
-  {
-     IO2AnalogVals[i] = muxShield.analogReadMS(2,i);
-     if(IO2AnalogVals[i]<4){ // preprocessing anti-bruit
-    IO2AnalogVals[i] = 0;
-    }
-  } 
-
-
-
-for (int i=0; i<16; i++)
-  {
-    Serial.print(IO1AnalogVals[i]);
-    Serial.print(' ');
-  }
-
-    for (int i=0; i<4; i++)
-  {
-    Serial.print(IO2AnalogVals[i]);
-    Serial.print(' ');
-  }
-
-  } /// fin de readThemPiezos()
+}
