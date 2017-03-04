@@ -4,7 +4,7 @@ import processing.serial.*;
 import oscP5.*;
 import netP5.*;
 
-Serial myPort;  // Create object from Serial class
+Arduino piezoDuino;  // Create object from Serial class
 OscP5 oscP5;
 NetAddress myRemoteLocation;
 ArrayList<OscMessage> buffer;
@@ -19,8 +19,13 @@ ValueSmoother[] smoothers;
 
 DmxP512 dmxOutput;
 int universeSize = 512;
-String DMXPRO_PORT="/dev/ttyUSB0";
+String DMXPRO_PORT="";
+String dmxProPort = "";
 int DMXPRO_BAUDRATE=115200;
+
+String PIEZO_PORT="";
+int PIEZO_BAUDRATE=115200;
+
 
 LEDStrip fixture;
 byte[] dmxBuffer;
@@ -38,10 +43,10 @@ void setup() {
     ledGraphics.background(0);
     ledGraphics.endDraw();
 
-    dmxOutput = new DmxP512(this,universeSize,true); // dmxOutput=new DmxP512(this,universeSize,false); était false
-    dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
+    setupSerial();
 
-    myPort = new Serial(this, "/dev/ttyACM0", 115200);
+    dmxOutput = new DmxP512(this,universeSize,true); // dmxOutput=new DmxP512(this,universeSize,false); était false
+    dmxOutput.setupDmxPro(dmxProPort, DMXPRO_BAUDRATE);
 
     fixture = new LEDStrip(20, 60);
     fixture.addLEDs(119, 59);
@@ -51,7 +56,7 @@ void setup() {
     blackout();
 
     pulseSystem = new PulseSystem();
-    renderer = new LifeRender(fixture.getPointA(), fixture.getPointB());
+    renderer = new PulseRender(fixture.getPointA(), fixture.getPointB());
 
     oscP5 = new OscP5(this,12000);
     myRemoteLocation = new NetAddress("10.0.1.43",12000);
@@ -60,6 +65,42 @@ void setup() {
         smoothers[i] = new ValueSmoother();
     }
 }
+
+
+// setup the serial connections with the two arduinos required.
+void setupSerial(){
+    String[] _ports = Serial.list();
+    for(String _port : _ports){
+        // find ports with matching pattern
+        if(_port.contains("/dev/ttyUSB") || _port.contains("/dev/ttyACM")){
+            Arduino _duino = new Arduino(this);
+            _duino.connect(_port, 115200);
+            String _mess = "";
+            // query its name by send '?'
+            for(int i = 0; i < 10; i++){
+                _mess = _duino.getMessage('?');
+                if(_mess.equals("")) println("Identifying : "+_port);
+                else break;
+                delay(200);
+            }
+            // then assign them to the correct variables
+            if(_mess.contains("piezo")) piezoDuino = _duino;
+            else if(_mess.equals("")){
+                _duino.close();
+                dmxProPort  = _port;
+            }
+        }
+    }
+    if(piezoDuino == null) {
+        println("WARNING : issue with piezo arduino");
+        exit();
+    }
+    if(dmxProPort.equals("")) {
+        println("WARNING : issue with entec pro");
+        exit();
+    }
+}
+
 
 void draw() {
     // if(frameCount % 120 == 1) pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02), renderer);
@@ -82,12 +123,7 @@ void draw() {
 }
 
 void poll(){
-    myPort.write('*');
-    String _tmp = "";
-    while ( myPort.available() > 0){
-        _tmp += char(myPort.read());
-    }
-    String[] _buf = split(_tmp, ',');
+    String[] _buf = split(piezoDuino.poll(), ',');
     if(_buf.length >= PIEZO_COUNT){
         int _ind = 0;
         for(String _str : _buf){
@@ -162,7 +198,7 @@ void parseOSC(OscMessage theOscMessage){
 void doLEDGraphics(){
     // init the grpahics buffer
     ledGraphics.beginDraw();
-    ledGraphics.background(0,0);
+    // ledGraphics.background(0,0);
     ledGraphics.fill(0, 30);
     ledGraphics.noStroke();
     // ledGraphics.rectMode()
@@ -171,9 +207,9 @@ void doLEDGraphics(){
 
     fixture.draw(ledGraphics);
     // draw stuff
-    ledGraphics.stroke(255,0,0);
-    ledGraphics.strokeWeight(3);
-    ledGraphics.point(mouseX, 60);
+    // ledGraphics.stroke(255,0,0);
+    // ledGraphics.strokeWeight(3);
+    // ledGraphics.point(mouseX, 60);
 
     // draw the pulses
     // RGBGradient();
