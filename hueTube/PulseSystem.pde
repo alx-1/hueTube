@@ -130,12 +130,13 @@ class ReturnPulse extends Pulse {
 			position = 1.0;
 			power *= -1;
 		}
-		life -= 0.01;
+		life -= 0.001;
 		power -= power / 100.0;
 		float _minSpeed = 0.002;
 		if(power < 0) power = constrain(power,-1.0, -_minSpeed);
 		else power = constrain(power, _minSpeed, 1.0);
 
+		if(life <= 0) return true;
 		if(dir) return position < startingPosition;
 		else return position > startingPosition;
 

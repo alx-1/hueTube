@@ -14,8 +14,9 @@ int DMXPRO_BAUDRATE=115200;
 
 // piezo sensing
 Arduino piezoDuino;
-// String ARDUINO_PORT = "/dev/ttyACM0"; ///
-String ARDUINO_PORT = "dev/tty.usbmodemFA131";
+// String ARDUINO_MATCH_STRING = "ACM";
+String ARDUINO_MATCH_STRING = "usbmodem";
+
 int ARDUINO_BAUDRATE = 115200;
 final int PIEZO_COUNT = 20;
 ValueSmoother[] smoothers;
@@ -29,8 +30,12 @@ PGraphics ledGraphics;
 PulseSystem pulseSystem;
 PulseRender renderer;
 boolean doFlash;
+// trigger sensistivity
 int SENSITIVITY = 10;
-int STANDBY_TIME = 10000;
+// power/speed scaling
+float PULSE_POWER_DIVIDER = 1000.0;
+int STANDBY_TIME = 10000; // millseconds
+float GRADIENT_SPEED = 3000.0;
 int timeout = 0;
 boolean standby = false;
 
@@ -42,7 +47,11 @@ void setup() {
     ledGraphics.endDraw();
 
     piezoDuino = new Arduino(this);
-    piezoDuino.connect(ARDUINO_PORT, ARDUINO_BAUDRATE);
+    for(String _s : Serial.list()){
+        if(_s.contains(ARDUINO_MATCH_STRING)){
+            piezoDuino.connect(_s, ARDUINO_BAUDRATE);
+        }
+    }
 
     dmxOutput = new DmxP512(this,universeSize,true); // dmxOutput=new DmxP512(this,universeSize,false); était false
     dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
@@ -131,7 +140,7 @@ void checkForPulse(){
     if(_highest > SENSITIVITY && _chosen != null){
         if(_chosen.canUse()){
             _chosen.use();
-            pulseSystem.makePulse(_pos/20.0, _highest/1000.0, renderer);
+            pulseSystem.makePulse(_pos/20.0, _highest/PULSE_POWER_DIVIDER, renderer);
             // println(_pos/20.0+" "+_highest/1000.0);
             timeout = millis();
         }
@@ -161,7 +170,9 @@ void doLEDGraphics(){
     // ledGraphics.point(mouseX, 60);
 
     // draw the pulses
-    if(standby) RGBGradient();
+    // if(standby) RGBGradient();
+    if(standby) hueTube();
+
     drawPulses();
     // end the drawing process on buffer
     ledGraphics.endDraw();
@@ -213,4 +224,12 @@ void RGBGradient(){
     ledGraphics.stroke(0,0,255);
     vecVert(ledGraphics, fixture.getPointB());
     ledGraphics.endShape();
+}
+
+void hueTube(){
+    ledGraphics.strokeWeight(3);
+    for(LEDPixel _p : fixture.getPixels()){
+        ledGraphics.stroke(HSBtoRGB((4*_p.xPos+millis()%GRADIENT_SPEED)/GRADIENT_SPEED, 1.0, 1.0));
+        ledGraphics.point(_p.xPos, _p.yPos);
+    }
 }
