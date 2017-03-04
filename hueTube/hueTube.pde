@@ -8,12 +8,14 @@ import dmxP512.*;
 
 DmxP512 dmxOutput;
 int universeSize = 512;
-String DMXPRO_PORT="/dev/ttyUSB0";
+// String DMXPRO_PORT="/dev/ttyUSB0"; 
+String DMXPRO_PORT="/dev/tty.usbserial-EN168786";
 int DMXPRO_BAUDRATE=115200;
 
 // piezo sensing
 Arduino piezoDuino;
-String ARDUINO_PORT = "/dev/ttyACM0";
+// String ARDUINO_PORT = "/dev/ttyACM0"; ///
+String ARDUINO_PORT = "dev/tty.usbmodemFA131";
 int ARDUINO_BAUDRATE = 115200;
 final int PIEZO_COUNT = 20;
 ValueSmoother[] smoothers;
