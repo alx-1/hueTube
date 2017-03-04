@@ -1,6 +1,13 @@
 import dmxP512.*;
 import processing.serial.*;
 
+import oscP5.*;
+import netP5.*;
+
+OscP5 oscP5;
+NetAddress myRemoteLocation;
+ArrayList<OscMessage> buffer;
+
 // dmx addresses, 0, 145, 192
 // on controller 000000000   0001
 //               101011010
@@ -12,25 +19,21 @@ int universeSize = 512;
 String DMXPRO_PORT="/dev/ttyUSB0";
 int DMXPRO_BAUDRATE=115200;
 
-Serial myPort;  // Create object from Serial class
-
-int chanDMX =  245; // pour le contrôleur maison de seb qui reçoit les valeurs de 256 à 400
-int valCouleur = 0;
-
-String val; // data du port série
-int[] piezos; // données une fois converties
-
 LEDStrip fixture;
 byte[] dmxBuffer;
 PGraphics ledGraphics;
 
 PulseSystem pulseSystem;
 PulseRender renderer;
+boolean doFlash;
 
 void setup() {
-
+    buffer = new ArrayList<OscMessage>();
   size(800, 600, P2D);
   ledGraphics = createGraphics(width, height, P2D);
+  ledGraphics.beginDraw();
+  ledGraphics.background(0);
+  ledGraphics.endDraw();
 
   dmxOutput = new DmxP512(this,universeSize,true); // dmxOutput=new DmxP512(this,universeSize,false); était false
   dmxOutput.setupDmxPro(DMXPRO_PORT, DMXPRO_BAUDRATE);
@@ -44,60 +47,71 @@ void setup() {
 
   pulseSystem = new PulseSystem();
   renderer = new LifeRender(fixture.getPointA(), fixture.getPointB());
-  //
-  // String portName = Serial.list()[2]; //change the 0 to a 1 or 2 etc. to match your port
-  // myPort = new Serial(this, portName, 115200);
+
+  oscP5 = new OscP5(this,12000);
+  myRemoteLocation = new NetAddress("10.0.1.43",12000);
 }
 
 void draw() {
+    // if(frameCount % 120 == 1) pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02), renderer);
+    background(170,20,20);
+    textSize(20);
+    text((int)frameRate, 20, 20);
 
-  background(170,20,20);
-  textSize(20);
-  text((int)frameRate, 20, 20);
-
-  pulseSystem.update();
-  doLEDGraphics();
-  outputDMX();
-  //
-  // if ( myPort.available() > 0)
-  // {  // If data is available,
-  // val = myPort.readStringUntil('\n');         // read it and store it in val
-  // }
-  // println(val); //print it out in the console
-  //   if(val!=null){ // check si val est non null parce qu'on a un problème de synchro entre arduino et processing
-  //   piezos = int(split(val, ' '));
-  //
-  //  for(int i = 0;i<piezos.length-1;i++){
-  //
-  //    fill(204, 100, 50);
-  //    rect(width/10+i*60, height/4, 60, piezos[i]*4); // dessine un rectangle
-  //    text(i, width/10+i*60+30, height/4);
-  //
-  //    }
-  // }
+    pulseSystem.update();
+    doLEDGraphics();
+    outputDMX();
+    if(buffer.size() > 0){
+        parseOSC(buffer.get(0));
+        buffer.remove(0);
+    }
 }
 
 void mousePressed(){
-    pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02), renderer);
+    oscPulse(float(mouseX) / float(width), random(0.001, 0.02));
+//    pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02), renderer);
+}
+
+void oscPulse(float _pos, float _power){
+    OscMessage myMessage = new OscMessage("/huetube/pulse");
+    myMessage.add(_pos);
+    myMessage.add(_power);
+    oscP5.send(myMessage, myRemoteLocation);
+}
+
+/* incoming osc message are forwarded to the oscEvent method. */
+void oscEvent(OscMessage theOscMessage) {
+    buffer.add(theOscMessage);
+}
+
+void parseOSC(OscMessage theOscMessage){
+    if(theOscMessage.checkAddrPattern("/huetube/pulse")==true) {
+      if(theOscMessage.checkTypetag("ff")) {
+        pulseSystem.makePulse(theOscMessage.get(0).floatValue(), theOscMessage.get(1).floatValue()/10.0, renderer);
+      }
+    }
+    doFlash = true;
 }
 
 void doLEDGraphics(){
     // init the grpahics buffer
     ledGraphics.beginDraw();
     ledGraphics.background(0,0);
+    ledGraphics.fill(0, 30);
+    ledGraphics.noStroke();
+    // ledGraphics.rectMode()
+    ledGraphics.blendMode(BLEND);
+    ledGraphics.rect(0,0,width, height);
+
     fixture.draw(ledGraphics);
     // draw stuff
-    // RGBGradient();
     ledGraphics.stroke(255,0,0);
     ledGraphics.strokeWeight(3);
     ledGraphics.point(mouseX, 60);
 
-    ledGraphics.strokeCap(SQUARE);
-    ledGraphics.blendMode(ADD);
-    // vecLine(ledGraphics, fixture.getPointA(), fixture.getPointB());
-    for(Pulse _pulse : pulseSystem.getPulses()){
-        _pulse.draw(ledGraphics);
-    }
+    // draw the pulses
+    // RGBGradient();
+    drawPulses();
     // end the drawing process on buffer
     ledGraphics.endDraw();
     image(ledGraphics, 0,0);
@@ -109,7 +123,13 @@ void doLEDGraphics(){
 }
 
 void drawPulses(){
-
+    ledGraphics.strokeCap(SQUARE);
+    ledGraphics.blendMode(ADD);
+    // vecLine(ledGraphics, fixture.getPointA(), fixture.getPointB());
+    for(Pulse _pulse : pulseSystem.getPulses()){
+        _pulse.draw(ledGraphics);
+    }
+    ledGraphics.blendMode(BLEND);
 }
 
 void blackout(){
@@ -120,9 +140,11 @@ void blackout(){
 }
 
 void outputDMX(){
+
     for(int i = 0; i < 511; i++){
-        dmxOutput.set(i+1, (int)dmxBuffer[i]);
+        dmxOutput.set(i+1, doFlash ? 255 : (int)dmxBuffer[i]);
     }
+    doFlash = false;
 }
 
 void RGBGradient(){
@@ -141,11 +163,4 @@ void RGBGradient(){
     ledGraphics.stroke(0,0,255);
     vecVert(ledGraphics, fixture.getPointB());
     ledGraphics.endShape();
-}
-
-void bounce(){
-    PVector _pos = vecLerp(fixture.getPointA(), fixture.getPointB(), pow(sin((millis()/1000.0)), 2) );
-    ledGraphics.noStroke();
-    ledGraphics.fill(0);
-    ledGraphics.rect(_pos.x-5, _pos.y-5, 10,10);
 }

@@ -1,6 +1,5 @@
 
 // 1D pulse system
-
 class PulseSystem {
 	ArrayList<Pulse> pulseArray;
 	int incrementer = 0;
@@ -76,6 +75,10 @@ class Pulse {
 		pulseColor = _c;
 	}
 
+	public void draw(PGraphics _pg){
+		renderer.draw(_pg, this);
+	}
+
 	public boolean update(){
 		position += power;
 		if(position < 0.0){
@@ -92,11 +95,6 @@ class Pulse {
 		// if life is at zero reutrn true to remove
 		return life < 0.0;
 	}
-
-	public void draw(PGraphics _pg){
-		renderer.draw(_pg, this);
-	}
-
 
 	public float getPositon(){
 		return position;
