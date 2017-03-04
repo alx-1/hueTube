@@ -1,21 +1,10 @@
 import dmxP512.*;
-import processing.serial.*;
-
-import oscP5.*;
-import netP5.*;
-
-Arduino piezoDuino;  // Create object from Serial class
-OscP5 oscP5;
-NetAddress myRemoteLocation;
-ArrayList<OscMessage> buffer;
 
 // dmx addresses, 0, 145, 192
 // on controller 000000000   0001
 //               101011010
 //               000000000
 //               000000000
-final int PIEZO_COUNT = 20;
-ValueSmoother[] smoothers;
 
 DmxP512 dmxOutput;
 int universeSize = 512;
@@ -23,20 +12,25 @@ String DMXPRO_PORT="";
 String dmxProPort = "";
 int DMXPRO_BAUDRATE=115200;
 
-String PIEZO_PORT="";
-int PIEZO_BAUDRATE=115200;
+// piezo sensing
+Arduino piezoDuino;
+final int PIEZO_COUNT = 20;
+ValueSmoother[] smoothers;
 
-
+// led mapping
 LEDStrip fixture;
 byte[] dmxBuffer;
 PGraphics ledGraphics;
 
+// pulse system
 PulseSystem pulseSystem;
 PulseRender renderer;
 boolean doFlash;
-
+int SENSITIVITY = 10;
+int STANDBY_TIME = 10000;
+int timeout = 0;
+boolean standby = false;
 void setup() {
-    buffer = new ArrayList<OscMessage>();
     size(800, 600, P2D);
     ledGraphics = createGraphics(width, height, P2D);
     ledGraphics.beginDraw();
@@ -58,14 +52,35 @@ void setup() {
     pulseSystem = new PulseSystem();
     renderer = new PulseRender(fixture.getPointA(), fixture.getPointB());
 
-    oscP5 = new OscP5(this,12000);
-    myRemoteLocation = new NetAddress("10.0.1.43",12000);
     smoothers = new ValueSmoother[PIEZO_COUNT];
     for(int i = 0; i < PIEZO_COUNT; i++){
         smoothers[i] = new ValueSmoother();
     }
 }
 
+void draw() {
+    // if(frameCount % 120 == 1) pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02), renderer);
+    background(170,20,20);
+    textSize(20);
+
+    pulseSystem.update();
+    doLEDGraphics();
+    outputDMX();
+
+    text((int)frameRate, 20, 20);
+
+    if(frameCount % 4 == 1){
+        poll();
+        checkForPulse();
+    }
+    drawPiezo();
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+///////
+///////     Serial Stuff
+///////
+////////////////////////////////////////////////////////////////////////////////////
 
 // setup the serial connections with the two arduinos required.
 void setupSerial(){
@@ -95,33 +110,15 @@ void setupSerial(){
         println("WARNING : issue with piezo arduino");
         exit();
     }
+    else println("Piezos connected");
     if(dmxProPort.equals("")) {
         println("WARNING : issue with entec pro");
         exit();
     }
+    else println("Entec port : "+dmxProPort);
 }
 
-
-void draw() {
-    // if(frameCount % 120 == 1) pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02), renderer);
-    background(170,20,20);
-    textSize(20);
-    text((int)frameRate, 20, 20);
-
-    pulseSystem.update();
-    doLEDGraphics();
-    outputDMX();
-    if(buffer.size() > 0){
-        parseOSC(buffer.get(0));
-        buffer.remove(0);
-    }
-    if(frameCount % 4 == 1){
-        poll();
-        checkForPulse();
-    }
-    drawPiezo();
-}
-
+// poll piezos
 void poll(){
     String[] _buf = split(piezoDuino.poll(), ',');
     if(_buf.length >= PIEZO_COUNT){
@@ -134,6 +131,7 @@ void poll(){
     }
 }
 
+// draw piezo data
 void drawPiezo(){
     pushMatrix();
     translate(10, height / 2);
@@ -148,7 +146,7 @@ void drawPiezo(){
     popMatrix();
 }
 
-
+// determin if we send a pulse from piezo data
 void checkForPulse(){
     float _highest = 0;
     float _pos = 0;
@@ -160,39 +158,20 @@ void checkForPulse(){
             _chosen = smoothers[i];
         }
     }
-    if(_highest > 5.0 && _chosen != null){
+    if(_highest > SENSITIVITY && _chosen != null){
         if(_chosen.canUse()){
             _chosen.use();
             pulseSystem.makePulse(_pos/20.0, _highest/1000.0, renderer);
             println(_pos/20.0+" "+_highest/1000.0);
+            timeout = millis();
         }
     }
+    if(millis() - timeout > STANDBY_TIME) standby = true;
+    else standby = false;
 }
 
 void mousePressed(){
-    oscPulse(float(mouseX) / float(width), random(0.001, 0.02));
-//    pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02), renderer);
-}
-
-void oscPulse(float _pos, float _power){
-    OscMessage myMessage = new OscMessage("/huetube/pulse");
-    myMessage.add(_pos);
-    myMessage.add(_power);
-    oscP5.send(myMessage, myRemoteLocation);
-}
-
-/* incoming osc message are forwarded to the oscEvent method. */
-void oscEvent(OscMessage theOscMessage) {
-    buffer.add(theOscMessage);
-}
-
-void parseOSC(OscMessage theOscMessage){
-    if(theOscMessage.checkAddrPattern("/huetube/pulse")==true) {
-      if(theOscMessage.checkTypetag("ff")) {
-        pulseSystem.makePulse(theOscMessage.get(0).floatValue(), theOscMessage.get(1).floatValue()/10.0, renderer);
-      }
-    }
-    doFlash = true;
+   pulseSystem.makePulse(float(mouseX) / float(width), random(0.001, 0.02), renderer);
 }
 
 void doLEDGraphics(){
@@ -212,7 +191,7 @@ void doLEDGraphics(){
     // ledGraphics.point(mouseX, 60);
 
     // draw the pulses
-    // RGBGradient();
+    if(standby) RGBGradient();
     drawPulses();
     // end the drawing process on buffer
     ledGraphics.endDraw();
@@ -242,7 +221,6 @@ void blackout(){
 }
 
 void outputDMX(){
-
     for(int i = 0; i < 511; i++){
         dmxOutput.set(i+1, doFlash ? 255 : (int)dmxBuffer[i]);
     }
