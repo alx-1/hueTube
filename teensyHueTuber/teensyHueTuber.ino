@@ -1,5 +1,5 @@
 // standalone teensy code for HueTube project
-// Copyright Maxime Damecour 16/05/2017 maxd@nnvtn.ca
+// Copyright Maxime Damecour 05/2017 maxd@nnvtn.ca
 
 #include "FastLED.h"
 
@@ -14,20 +14,22 @@ CRGB buffer[NUM_LEDS];
 
 /////////////////////////////// input //////////////////////////////
 #define PIEZO_COUNT 20
-int piezos[PIEZO_COUNT];
 int sum = 0;
 int previousSum = 0;
-#define OFFSET_WINDOW 4
-int offset[OFFSET_WINDOW][PIEZO_COUNT];
-int average[PIEZO_COUNT];
-int offsetIndex = 0;
-//
-// typedef struct {
-//
-// } Piezo;
+int piezoIndex = 0;
+#define WINDOW_SIZE 4
 
+typedef struct {
+	int input;
+	int average;
+	int past[WINDOW_SIZE];
+	int delta;
+} Piezo;
+
+Piezo piezos[PIEZO_COUNT];
 
 /////////////////////////////// pulses //////////////////////////////
+#define POOL_SIZE 100
 
 typedef struct {
 	float life;
@@ -35,14 +37,13 @@ typedef struct {
 	float start;
 	float position;
 	bool bounced;
-	// bool dir;
-	// bool alive;
-	CRGB color;
+	int colorIndex;
 } Pulse;
-#define POOL_SIZE  100
+
 Pulse pulses[POOL_SIZE];
-
-
+#define DEBOUNCE 300
+#define TIMEOUT 10000
+uint16_t lastTrigger = 0;
 /////////////////////////////// RenderOptions //////////////////////////////
 #define FADE_VALUE 10
 #define COLOR_COUNT 4
@@ -55,22 +56,23 @@ int colorIndex = 0;
 void setup(){
 	Serial.begin(115200);
 	Serial1.begin(115200);
-	// FastLED.addLeds<WS2812, DATA_PIN, CLOCK_PIN>(leds, NUM_LEDS);
-	FastLED.addLeds<WS2812, DATA_PIN1, GRB>(leds[0], NUM_LEDS_PER_STRIP);
-	FastLED.addLeds<WS2812, DATA_PIN2, GRB>(leds[1], NUM_LEDS_PER_STRIP);
-
+	// init LEDs
+	FastLED.addLeds<WS2812, DATA_PIN1, RGB>(leds[0], NUM_LEDS_PER_STRIP);
+	FastLED.addLeds<WS2812, DATA_PIN2, RGB>(leds[1], NUM_LEDS_PER_STRIP);
 	for(int i = 0; i < NUM_LEDS_PER_STRIP; i++){
-		leds[0][i] = CRGB(30,0,0);
-		leds[1][i] = CRGB(30,0,0);
+		leds[0][i] = CRGB(30,30,30);
+		leds[1][i] = CRGB(30,30,30);
 	}
 	FastLED.show();
+	delay(300);
+	// init pulses
 	for(int i = 0; i < POOL_SIZE; i++){
 		pulses[i].life = -1.0;
 	}
-	memset(piezos, 0, sizeof(piezos));
-	memset(offset, 0, sizeof(offset));
-	memset(average, 0, sizeof(average));
-
+	// init piezos
+	for(int i =0; i < PIEZO_COUNT; i++){
+		initPiezo(&piezos[i]);
+	}
 }
 
 /////////////////////////////// loop //////////////////////////////
@@ -81,14 +83,6 @@ void loop(){
 	for(int i = 0; i < NUM_LEDS; i++){
 		buffer[i] -= CRGB(FADE_VALUE, FADE_VALUE, FADE_VALUE);
 	}
-	// manual trigger
-	// if(Serial.available()){
-	// 	Serial.read();Serial.read();Serial.read();
-	// 	float pos = 0.5 + ((random(4)-2.0)/10.0);
-	// 	float power = 0.3;
-	// 	startPulse(pos, pos < 0.5 ? power : -power);
-	// 	// startPulse(pos, -power);
-	// }
 	// debug
 	printPulses();
 	// do pulses
@@ -97,8 +91,11 @@ void loop(){
 		renderPulse(&pulses[i]);
 	}
 	// push LEDs
+	if(millis() - lastTrigger > TIMEOUT) {
+		standby();
+	}
 	show();
-	delay(15);
+	delay(4);
 }
 
 /////////////////////////////// LED stuff //////////////////////////////
@@ -114,51 +111,50 @@ void show(){
 void renderPulse(Pulse* _pulse){
 	if(_pulse->life >= 0){
 		int _index = 1+_pulse->position*(NUM_LEDS-2);
-		buffer[_index-1] += _pulse->color/3.0;
-		buffer[_index] += _pulse->color;
-		buffer[_index+1] += _pulse->color/3.0;
+		buffer[_index-1] += pallette[_pulse->colorIndex%COLOR_COUNT]/3.0;
+		buffer[_index] +=  pallette[_pulse->colorIndex%COLOR_COUNT];
+		buffer[_index+1] += pallette[_pulse->colorIndex%COLOR_COUNT]/3.0;
+	}
+}
+
+void standby(){
+	for(int i = 0; i < NUM_LEDS; i++){
+		buffer[i] = CHSV(int(i*2+millis()/10.0)%255,255,255);
 	}
 }
 
 /////////////////////////////// input //////////////////////////////
 
 void poll(){
-	sum = 0;
+	int _sum = 0;
+	// buffer into the piezo structs and make average
 	for(int i = 0; i < PIEZO_COUNT; i++){
-		piezos[i] = Serial1.read();
-		sum += piezos[i];
-		// Serial.println(piezos[i]);
+		 piezos[i].input = Serial1.read();
+		_sum += piezos[i].input;
 	}
-	sum /= PIEZO_COUNT;
-	if(sum > previousSum){
-		// Serial.println(sum - previousSum);
+	_sum /= PIEZO_COUNT;
+	// check for event
+	if(_sum > previousSum && millis()-lastTrigger > DEBOUNCE){
+		lastTrigger = millis();
 		for(int i = 0; i < PIEZO_COUNT; i++){
-			offset[offsetIndex][i] = piezos[i];
-			offsetIndex++;
-			offsetIndex %= OFFSET_WINDOW;
+			updatePiezo(&piezos[i]);
 		}
-		for(int j = 0; j < PIEZO_COUNT; j++){
-			average[j] = 0;
-			for(int i = 0; i < OFFSET_WINDOW; i++){
-				average[j] += offset[i][j];
-			}
-			average[j] /= OFFSET_WINDOW;
-
-			Serial.print(average[j]);
-			Serial.print(" ");
-		}
-		Serial.println();
-		// launch
-		for(int i = 0; i < PIEZO_COUNT; i++){
-			if(piezos[i] > average[i]+1 ){
-				float _pos = i/float(PIEZO_COUNT);
-				float _pow = 0.3;
-				startPulse(_pos, _pos < 0.5 ? _pow : -_pow);
+		piezoIndex++;
+		piezoIndex %= WINDOW_SIZE;
+		int _index = 0;
+		int _high = 0;
+		for(int i =0 ; i < PIEZO_COUNT; i++){
+			if(piezos[i].delta > _high){
+				_high = piezos[i].delta;
+				_index = i;
 			}
 		}
 
+		float _pos = _index/float(PIEZO_COUNT);
+		float _pow = 0.2+_high/20.0;
+		startPulse(_pos, _pos < 0.5 ? _pow : -_pow);
 	}
-	previousSum = sum;
+	previousSum = _sum;
 
 	// light map piezos
 	// for(int i = 0; i < NUM_LEDS; i++){
@@ -166,6 +162,22 @@ void poll(){
 	// }
 	// show();
 	Serial1.write('*');
+}
+
+void updatePiezo(Piezo* _piezo){
+	_piezo->delta = _piezo->input - _piezo->average;
+	_piezo->past[piezoIndex] = _piezo->input;
+	_piezo->average = 0;
+	for(int i = 0; i < WINDOW_SIZE; i++){
+		_piezo->average += _piezo->past[i];
+	}
+}
+
+void initPiezo(Piezo* _piezo){
+	_piezo->input = 0;
+	_piezo->average = 0;
+	memset(_piezo->past, 0, sizeof(_piezo));
+	_piezo->delta = 0;
 }
 
 
@@ -197,16 +209,16 @@ void setPulse(Pulse* _pulse, float _pos, float _power){
 	_pulse->power = _power;
 	_pulse->life = 1.0;
 	_pulse->bounced = false;
-	_pulse-> color = pallette[colorIndex];
+	_pulse->colorIndex = colorIndex;//random(COLOR_COUNT);
 	colorIndex++;
-	colorIndex %= COLOR_COUNT;
+	// colorIndex %= COLOR_COUNT;
 }
 
 
 
 void updatePulse(Pulse* _pulse){
 	if(_pulse->life >= 0){
-		_pulse->position += _pulse->power/10.0;
+		_pulse->position += _pulse->power/13.0;
 		if(_pulse->position < 0.0){
 			_pulse->position = 0.0;
 			_pulse->power *= -1;
