@@ -44,7 +44,7 @@ typedef struct {
 Pulse pulses[POOL_SIZE];
 #define RATE_DELAY 4
 #define DEBOUNCE 40
-#define TIMEOUT 800
+#define TIMEOUT 1000
 
 int lastTrigger = 0;
 int incrementer = 0;
@@ -52,7 +52,7 @@ int incrementer = 0;
 /////////////////////////////// RenderOptions //////////////////////////////
 #define FADE_VALUE 5
 #define COLOR_COUNT 4
-CRGB pallette[COLOR_COUNT] = {CRGB(255,30,30), CRGB(0,255,0), CRGB(10,10,255), CRGB(100,0,100)};
+CRGB pallette[COLOR_COUNT] = {CRGB(255,0,0), CRGB(0,255,0), CRGB(10,10,255), CRGB(100,0,100)};
 int colorIncrement = 0;
 
 /////////////////////////////// setup //////////////////////////////
@@ -119,7 +119,7 @@ void renderPulse(Pulse* _pulse){
 
 void standby(){
 	for(int i = 0; i < NUM_LEDS; i++){
-		buffer[i] = CHSV(int(i*4+millis()/10.0)%255,255, constrain((incrementer-TIMEOUT-lastTrigger), 0, 255));
+		buffer[i] = CHSV(int(i*2+millis()/10.0)%255,255, constrain((incrementer-TIMEOUT-lastTrigger), 0, 255));
 	}
 }
 
@@ -146,7 +146,6 @@ void poll(){
 	}
 	_sum /= PIEZO_COUNT;
 	// check for event
-	Serial.println(incrementer-lastTrigger);
 	if(_sum > previousSum && (incrementer-lastTrigger) > DEBOUNCE){
 		for(int i = 0; i < PIEZO_COUNT; i++){
 			updatePiezo(&piezos[i]);
@@ -161,10 +160,10 @@ void poll(){
 				_index = i;
 			}
 		}
-		// Serial.println();
 
 		float _pos = _index/float(PIEZO_COUNT);
-		float _pow = 0.2+_high/20.0;
+		// float _pow = 0.2+_high/60.0;
+		float _pow = 0.2+_high/60.0;
 		startPulse(_pos, _pos < 0.5 ? _pow : -_pow);
 		// lastTrigger = incrementer;
 		lastTrigger = incrementer;
@@ -180,8 +179,7 @@ void poll(){
 }
 
 void updatePiezo(Piezo* _piezo){
-	// _piezo->delta = _piezo->input - _piezo->average;
-	_piezo->delta = (_piezo->input - _piezo->average) - (_piezo->previous - _piezo->average);
+	_piezo->delta = _piezo->input - _piezo->average;
 	_piezo->past[piezoIndex] = _piezo->input;
 	_piezo->average = 0;
 	for(int i = 0; i < WINDOW_SIZE; i++){
@@ -250,7 +248,7 @@ void updatePulse(Pulse* _pulse){
 			}
 		}
 		_pulse->power -= _pulse->power / 80.0;
-		float _minSpeed = 0.02;
+		float _minSpeed = 0.03;
 		if(_pulse->power < 0) _pulse->power = constrain(_pulse->power,-1.0, -_minSpeed);
 		else _pulse->power = constrain(_pulse->power, _minSpeed, 1.0);
 
