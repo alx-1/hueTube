@@ -159,6 +159,7 @@ void poll(){
 				_high = piezos[i].delta;
 				_index = i;
 			}
+			Serial.print(piezos[i].)
 		}
 
 		float _pos = _index/float(PIEZO_COUNT);
